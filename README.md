@@ -52,6 +52,29 @@ Requires Node 18+. There is nothing else to configure — no API keys, no databa
 
 ---
 
+## 🔭 KIC-only resolver
+
+Don't want to hunt through catalogues for stellar parameters? Open **Upload / paste** and type an identifier into the resolver box:
+
+```
+6922244        KIC id (with or without the "KIC " prefix, leading zeros fine)
+Kepler-10 b    Kepler planet name
+KOI-97.01      KOI designation (K00097.01 also works)
+```
+
+TransitVetter fills in the rest — **host-star radius, mass and effective temperature**, plus the published **period, transit depth and duration** — and writes the stellar values straight into the analysis boxes.
+
+Two lookup layers, in order:
+
+1. **Bundled catalogue** — the 26 teaching targets in `src/lib/keplerTargets.ts`. Instant, works with **no network**.
+2. **NASA Exoplanet Archive (live)** — a TAP query against the cumulative KOI table, run from your browser. Covers all ~9,500 KOIs. If you're offline or the request is blocked, the app says so and falls back to layer 1.
+
+From the result card you can **fill the star parameters**, **analyse an archive model** (a light curve synthesised from the published period/depth/duration, so you can watch the pipeline run immediately), copy the KIC or a ready-made Lightkurve snippet, and jump to the NASA Time Series Viewer, the MAST FITS tree or the official KOI record. NASA's disposition stays hidden behind a *Reveal* button so you can vet the signal yourself first.
+
+> The archive model is a **model**, not real photometry — it reproduces the catalogued transit shape. For genuine data, use the download links and drop the CSV into the upload box.
+
+---
+
 ## 🛸 Getting real Kepler data
 
 Every Kepler observation is public and free. The app reads **plain text tables**, so archive `FITS` files need one conversion step (four lines of Python, below).
@@ -208,11 +231,15 @@ src/
 ├── App.tsx                     Layout, pipeline orchestration, animated transit hero
 ├── lib/
 │   ├── lightcurve.ts           Data model, seeded simulator, sample catalogue, text parser
+│   ├── keplerTargets.ts        26 real Kepler targets + archive URL builders
+│   ├── kicResolve.ts           KIC / KOI / name parsing, catalogue + live NASA TAP lookup
 │   ├── analysis.ts             Detrend · BLS · phase-fold · trapezoid fit · metrics · classifier
 │   ├── analysis.worker.ts      Runs the pipeline off the main thread
 │   └── prompt.ts               Physical parameters → image-generation prompt
 └── components/
     ├── DataInput.tsx           Sample targets · upload/paste (+ data-source tips) · simulator
+    ├── KicResolver.tsx         Enter a KIC → auto-filled stellar & transit parameters
+    ├── RandomRoller.tsx        Random real-target picker with hidden disposition
     ├── ResultPanel.tsx         Verdict, probability, per-test breakdown
     ├── Charts.tsx              Light curve, phase-folded view, BLS periodogram (hand-rolled SVG)
     ├── PlanetVisual.tsx        Procedural planet rendering from derived properties
@@ -226,7 +253,7 @@ No charting library, no numerical library — the periodograms, fits and plots a
 
 ## 🔒 Privacy & offline
 
-The entire pipeline is client-side TypeScript. Uploaded files are read with `FileReader` and analysed in a Web Worker; nothing is transmitted anywhere. `npm run build` emits a single `dist/index.html` you can email, host on a USB stick, or open with no network at all.
+The entire pipeline is client-side TypeScript. Uploaded files are read with `FileReader` and analysed in a Web Worker; nothing is transmitted anywhere. The only optional outbound request is the KIC resolver's live NASA Exoplanet Archive lookup, which fires solely when you resolve an id that isn't in the bundled catalogue — skip it and the app never touches the network. `npm run build` emits a single `dist/index.html` you can email, host on a USB stick, or open with no network at all.
 
 ---
 

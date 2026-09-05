@@ -16,4 +16,32 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  preview: {
+    host: "0.0.0.0",
+    allowedHosts: true as unknown as string[],
+    proxy: {
+      // Same-origin proxy so the browser can query the NASA Exoplanet Archive
+      // TAP service, which sends no Access-Control-Allow-Origin header.
+      "/api/nasa": {
+        target: "https://exoplanetarchive.ipac.caltech.edu",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/api\/nasa/, ""),
+      },
+    },
+  },
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: true as unknown as string[],
+    proxy: {
+      // Same-origin proxy so the browser can query the NASA Exoplanet Archive
+      // TAP service, which sends no Access-Control-Allow-Origin header.
+      "/api/nasa": {
+        target: "https://exoplanetarchive.ipac.caltech.edu",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/api\/nasa/, ""),
+      },
+    },
+  },
 });

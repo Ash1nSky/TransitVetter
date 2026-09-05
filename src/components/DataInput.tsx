@@ -1,5 +1,8 @@
 import { useRef, useState } from 'react';
 import { DEFAULT_SIM, LightCurve, SAMPLE_TARGETS, SampleTarget, SimParams, StellarParams, lightCurveToCSV, parseLightCurveText, simulateLightCurve } from '../lib/lightcurve';
+import BeginnerGuide from './BeginnerGuide';
+import RandomRoller from './RandomRoller';
+import KicResolver from './KicResolver';
 
 export type InputTab = 'samples' | 'upload' | 'simulate';
 
@@ -10,6 +13,7 @@ interface Props {
   onSelectSample: (s: SampleTarget) => void;
   onUpload: (lc: LightCurve, stellar: StellarParams) => void;
   onSimulate: (lc: LightCurve, stellar: StellarParams) => void;
+  onResolved: (lc: LightCurve, stellar: StellarParams) => void;
   stellar: StellarParams;
   setStellar: (s: StellarParams) => void;
   busy: boolean;
@@ -160,7 +164,7 @@ function StellarEditor({ stellar, setStellar }: { stellar: StellarParams; setSte
   );
 }
 
-export default function DataInput({ tab, setTab, selectedSample, onSelectSample, onUpload, onSimulate, stellar, setStellar, busy }: Props) {
+export default function DataInput({ tab, setTab, selectedSample, onSelectSample, onUpload, onSimulate, onResolved, stellar, setStellar, busy }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -236,8 +240,11 @@ export default function DataInput({ tab, setTab, selectedSample, onSelectSample,
       )}
 
       {tab === 'upload' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <KicResolver setStellar={setStellar} onAnalyse={onResolved} busy={busy} />
           <DataSourceTip />
+          <BeginnerGuide />
+          <RandomRoller stellar={stellar} setStellar={setStellar} />
           <div
             onDragOver={(e) => {
               e.preventDefault();
