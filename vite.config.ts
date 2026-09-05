@@ -28,6 +28,15 @@ export default defineConfig({
         secure: true,
         rewrite: (p) => p.replace(/^\/api\/nasa/, ""),
       },
+      // Same-origin proxy for MAST's Kepler bulk tree (quarter directory
+      // listings + _llc.fits downloads), also without CORS headers. Powers
+      // the KIC resolver's "Analyse real light curve" button.
+      "/api/mast": {
+        target: "https://archive.stsci.edu",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/api\/mast/, ""),
+      },
     },
   },
   server: {
@@ -41,6 +50,15 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
         rewrite: (p) => p.replace(/^\/api\/nasa/, ""),
+      },
+      // Same-origin proxy for MAST's Kepler bulk tree (quarter directory
+      // listings + _llc.fits downloads), also without CORS headers. Powers
+      // the KIC resolver's "Analyse real light curve" button.
+      "/api/mast": {
+        target: "https://archive.stsci.edu",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/api\/mast/, ""),
       },
     },
   },
