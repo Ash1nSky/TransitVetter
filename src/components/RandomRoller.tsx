@@ -124,7 +124,7 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
 
         {/* Four pre-filled links */}
         <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
-          <a href={links.ts} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
+          <a href={links.ts} target="_blank" rel="noreferrer noopener" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-aurora/15 text-aurora group-hover:bg-aurora group-hover:text-void">👁</span>
             <span className="min-w-0 flex-1">
               <span className="block text-[11px] font-semibold text-white group-hover:text-aurora">See the real light curve now</span>
@@ -132,7 +132,7 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
             </span>
             <span className="text-slate-500">↗</span>
           </a>
-          <a href={links.bulk} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
+          <a href={links.bulk} target="_blank" rel="noreferrer noopener" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-slate-300 group-hover:bg-white group-hover:text-void">⬇</span>
             <span className="min-w-0 flex-1">
               <span className="block text-[11px] font-semibold text-white">Download from MAST</span>
@@ -140,7 +140,7 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
             </span>
             <span className="text-slate-500">↗</span>
           </a>
-          <a href={links.koi} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
+          <a href={links.koi} target="_blank" rel="noreferrer noopener" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-star/15 text-star">📋</span>
             <span className="min-w-0 flex-1">
               <span className="block text-[11px] font-semibold text-white">Official KOI record</span>
@@ -149,7 +149,7 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
             <span className="text-slate-500">↗</span>
           </a>
           {links.exo ? (
-            <a href={links.exo} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
+            <a href={links.exo} target="_blank" rel="noreferrer noopener" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-nebula/20 text-nebula">🛰</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[11px] font-semibold text-white">exo.MAST page</span>
@@ -158,7 +158,7 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
               <span className="text-slate-500">↗</span>
             </a>
           ) : (
-            <a href={links.mast} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
+            <a href={links.mast} target="_blank" rel="noreferrer noopener" className="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 transition hover:border-aurora/30 hover:bg-white/[0.06]">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-nebula/20 text-nebula">🔍</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[11px] font-semibold text-white">MAST search (pre-filled)</span>
@@ -168,6 +168,9 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
             </a>
           )}
         </div>
+        <p className="mt-1.5 text-center text-[10px] text-slate-500">
+          If a button doesn’t open inside the Arena preview, right-click → <span className="text-slate-300">Open link in new tab</span> — all four URLs work outside the iframe (and in the deployed single-file build).
+        </p>
 
         <details className="mt-2">
           <summary className="cursor-pointer list-none text-[11px] text-slate-400 hover:text-white">
@@ -201,7 +204,7 @@ export default function RandomRoller({ setStellar }: { stellar: StellarParams; s
                   {cur.disposition === 'CONFIRMED' ? 'NASA confirmed — a real planet.' : 'NASA flagged FALSE POSITIVE — an eclipsing binary, blend or spot signal.'}{' '}
                   {cur.kic === 12644769 && 'Case in point: KOI-1611.01 is an EB at 41 d, but the same star hosts the circumbinary planet Kepler-16 b at 229 d — same KIC, different signal.'}
                 </p>
-                <a href={links.ov} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-aurora underline-offset-2 hover:underline">
+                <a href={links.ov} target="_blank" rel="noreferrer noopener" className="mt-1 inline-block text-[11px] text-aurora underline-offset-2 hover:underline">
                   Open overview page ↗
                 </a>
               </div>

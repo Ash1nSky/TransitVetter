@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'transitvetter_todo_v1';
+const GUIDE_OPEN_KEY = 'transitvetter_guide_open_v1';
 
 type Step = {
   id: string;
@@ -33,7 +34,7 @@ const STEPS: Step[] = [
         </ul>
         <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
           No idea which star? Hit <span className="font-mono text-aurora">🎲 Roll a random target</span> below — it fills in a real KIC + stellar numbers for you. Or open the{' '}
-          <a href="https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative" target="_blank" rel="noreferrer" className="text-aurora underline-offset-2 hover:underline">
+          <a href="https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative" target="_blank" rel="noreferrer noopener" className="text-aurora underline-offset-2 hover:underline">
             KOI table
           </a>{' '}
           and filter <code className="font-mono text-slate-300">koi_disposition = CONFIRMED</code> to browse.
@@ -89,7 +90,7 @@ lc.to_csv("kic_5780885.csv")   # -> time, flux`}
         <ol className="mt-1 list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-slate-300">
           <li>
             Open{' '}
-            <a href="https://archive.stsci.edu/kepler/data_search/search.php" target="_blank" rel="noreferrer" className="text-aurora underline-offset-2 hover:underline">
+            <a href="https://archive.stsci.edu/kepler/data_search/search.php" target="_blank" rel="noreferrer noopener" className="text-aurora underline-offset-2 hover:underline">
               MAST Kepler Data Search
             </a>{' '}
             → type the KIC in the <b>Kepler ID</b> box.
@@ -157,7 +158,7 @@ lc.to_csv("kic_5780885.csv")`}
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
           Find them on the KOI table (one row per KOI) or the star’s{' '}
-          <a href="https://exoplanetarchive.ipac.caltech.edu/overview/Kepler-7%20b" target="_blank" rel="noreferrer" className="text-aurora underline-offset-2 hover:underline">
+          <a href="https://exoplanetarchive.ipac.caltech.edu/overview/Kepler-7%20b" target="_blank" rel="noreferrer noopener" className="text-aurora underline-offset-2 hover:underline">
             Overview page
           </a>
           . The random roller has a one-click <span className="rounded bg-white/5 px-1 font-mono text-white">Use this star’s parameters</span> button that fills the three boxes for you.
@@ -208,6 +209,7 @@ export default function BeginnerGuide() {
   const [checked, setChecked] = useState<boolean[]>(() => Array(STEPS.length).fill(false));
   const [openStep, setOpenStep] = useState<string | null>('pick');
   const [jargonOpen, setJargonOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(true);
 
   // hydrate from localStorage
   useEffect(() => {
@@ -217,6 +219,8 @@ export default function BeginnerGuide() {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length === STEPS.length) setChecked(parsed);
       }
+      const g = localStorage.getItem(GUIDE_OPEN_KEY);
+      if (g !== null) setGuideOpen(g === 'true');
     } catch {
       /* ignore */
     }
@@ -229,6 +233,14 @@ export default function BeginnerGuide() {
       /* ignore */
     }
   }, [checked]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GUIDE_OPEN_KEY, String(guideOpen));
+    } catch {
+      /* ignore */
+    }
+  }, [guideOpen]);
 
   const done = checked.filter(Boolean).length;
   const pct = (done / STEPS.length) * 100;
@@ -245,73 +257,96 @@ export default function BeginnerGuide() {
 
   return (
     <div className="space-y-3">
+      {/* Collapsible checklist wrapper */}
       <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-white">New to Kepler data? Follow this checklist</h3>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-              Six steps from “I’ve never opened the archive” to “I’ve vetted a real exoplanet”. Tap a step to unfold the plain-English how-to. Your ticks are saved in this browser.
-            </p>
-          </div>
+          <button
+            onClick={() => setGuideOpen(!guideOpen)}
+            className="flex flex-1 items-start gap-3 text-left"
+            aria-expanded={guideOpen}
+          >
+            <span className={`mt-0.5 shrink-0 text-slate-400 transition ${guideOpen ? 'rotate-180' : ''}`}>▾</span>
+            <span className="flex-1">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-white">New to Kepler data? Follow this checklist</span>
+                <span className="rounded-full bg-aurora/15 px-2 py-0.5 font-mono text-[10px] text-aurora">
+                  {done}/{STEPS.length} · {pct.toFixed(0)}%
+                </span>
+                {!guideOpen && <span className="text-[11px] text-slate-400">— tap to expand</span>}
+              </span>
+              {guideOpen ? (
+                <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
+                  Six steps from “I’ve never opened the archive” to “I’ve vetted a real exoplanet”. Tap a step to unfold the plain-English how-to. Your ticks are saved in this browser.
+                </span>
+              ) : (
+                <span className="mt-1 block text-[11px] leading-relaxed text-slate-500">Collapsed — progress saved. Expand to see the six steps + jargon decoder.</span>
+              )}
+            </span>
+          </button>
           <button onClick={reset} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-slate-400 hover:bg-white/10 hover:text-white">
             Reset
           </button>
         </div>
 
-        <div className="mt-3">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="font-mono text-slate-400">
-              {done} / {STEPS.length} completed
-            </span>
-            <span className="font-mono text-aurora">{pct.toFixed(0)}%</span>
-          </div>
-          <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
+        {/* persistent progress bar, visible even when collapsed */}
+        <div className="mt-3 flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
             <div className="h-full rounded-full bg-gradient-to-r from-nebula to-aurora transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
+          <span className="font-mono text-[10px] text-slate-400">{pct.toFixed(0)}%</span>
         </div>
 
-        <ul className="mt-3 space-y-1.5">
-          {STEPS.map((s, i) => {
-            const isDone = checked[i];
-            const isOpen = openStep === s.id;
-            return (
-              <li key={s.id} className={`rounded-xl border transition ${isDone ? 'border-aurora/30 bg-aurora/[0.07]' : 'border-white/10 bg-black/20'} ${isOpen ? 'ring-1 ring-white/10' : ''}`}>
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <button
-                    onClick={() => toggle(i)}
-                    aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] transition ${isDone ? 'border-aurora bg-aurora text-void' : 'border-white/20 bg-white/5 text-slate-400 hover:border-white/30'}`}
-                  >
-                    {isDone ? '✓' : ''}
-                  </button>
-                  <button onClick={() => setOpenStep(isOpen ? null : s.id)} className="flex flex-1 items-center justify-between gap-2 text-left">
-                    <span className={`text-xs font-medium ${isDone ? 'text-aurora' : 'text-white'}`}>{s.title}</span>
-                    <span className="hidden text-[11px] text-slate-400 sm:block">{s.summary}</span>
-                    <span className={`text-slate-500 transition ${isOpen ? 'rotate-180' : ''}`}>▾</span>
-                  </button>
-                </div>
-                {isOpen && <div className="border-t border-white/10 px-3 py-2.5 sm:px-4">{s.detail}</div>}
-              </li>
-            );
-          })}
-        </ul>
+        {guideOpen && (
+          <div className="fade-up mt-3 space-y-3">
+            <ul className="space-y-1.5">
+              {STEPS.map((s, i) => {
+                const isDone = checked[i];
+                const isOpen = openStep === s.id;
+                return (
+                  <li key={s.id} className={`rounded-xl border transition ${isDone ? 'border-aurora/30 bg-aurora/[0.07]' : 'border-white/10 bg-black/20'} ${isOpen ? 'ring-1 ring-white/10' : ''}`}>
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <button
+                        onClick={() => toggle(i)}
+                        aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] transition ${isDone ? 'border-aurora bg-aurora text-void' : 'border-white/20 bg-white/5 text-slate-400 hover:border-white/30'}`}
+                      >
+                        {isDone ? '✓' : ''}
+                      </button>
+                      <button onClick={() => setOpenStep(isOpen ? null : s.id)} className="flex flex-1 items-center justify-between gap-2 text-left">
+                        <span className={`text-xs font-medium ${isDone ? 'text-aurora' : 'text-white'}`}>{s.title}</span>
+                        <span className="hidden text-[11px] text-slate-400 sm:block">{s.summary}</span>
+                        <span className={`text-slate-500 transition ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                      </button>
+                    </div>
+                    {isOpen && <div className="border-t border-white/10 px-3 py-2.5 sm:px-4">{s.detail}</div>}
+                  </li>
+                );
+              })}
+            </ul>
 
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-          <a
-            href="https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-slate-200 hover:bg-white/10"
-          >
-            Open KOI table ↗
-          </a>
-          <a href="https://archive.stsci.edu/kepler/data_search/search.php" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-slate-200 hover:bg-white/10">
-            Open MAST search ↗
-          </a>
-        </div>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <a
+                href="https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-slate-200 hover:bg-white/10"
+              >
+                Open KOI table ↗
+              </a>
+              <a
+                href="https://archive.stsci.edu/kepler/data_search/search.php"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-slate-200 hover:bg-white/10"
+              >
+                Open MAST search ↗
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Jargon decoder */}
+      {/* Jargon decoder — stays visible even when checklist collapsed */}
       <div className="rounded-xl border border-white/10 bg-black/20">
         <button onClick={() => setJargonOpen(!jargonOpen)} className="flex w-full items-center justify-between px-3 py-2.5 text-left sm:px-4">
           <span className="text-xs font-semibold text-white">📖 Jargon decoder — talk like a Kepler vet</span>
