@@ -16,4 +16,12 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  preview: {
+    host: "0.0.0.0",
+    allowedHosts: true as unknown as string[],
+  },
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: true as unknown as string[],
+  },
 });

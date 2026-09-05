@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { DEFAULT_SIM, LightCurve, SAMPLE_TARGETS, SampleTarget, SimParams, StellarParams, lightCurveToCSV, parseLightCurveText, simulateLightCurve } from '../lib/lightcurve';
+import BeginnerGuide from './BeginnerGuide';
+import RandomRoller from './RandomRoller';
 
 export type InputTab = 'samples' | 'upload' | 'simulate';
 
@@ -236,8 +238,10 @@ export default function DataInput({ tab, setTab, selectedSample, onSelectSample,
       )}
 
       {tab === 'upload' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <DataSourceTip />
+          <BeginnerGuide />
+          <RandomRoller stellar={stellar} setStellar={setStellar} />
           <div
             onDragOver={(e) => {
               e.preventDefault();
