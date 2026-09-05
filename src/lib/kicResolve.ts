@@ -37,7 +37,15 @@ export interface ResolveOutcome {
   message: string;
 }
 
-const TAP = 'https://exoplanetarchive.ipac.caltech.edu/TAP/sync';
+// The NASA Exoplanet Archive TAP service. It sends no
+// Access-Control-Allow-Origin header, so a direct browser fetch is blocked by
+// CORS. We prefer the same-origin `/api/nasa` proxy (see vite.config.ts) and
+// only fall back to this absolute URL when the proxy is unavailable.
+const TAP_PATH = '/TAP/sync';
+const TAP_HOST = 'https://exoplanetarchive.ipac.caltech.edu';
+const TAP = `${TAP_HOST}${TAP_PATH}`;
+// Same-origin path that vite proxies to TAP_HOST, dodging CORS entirely.
+const TAP_PROXY = `/api/nasa${TAP_PATH}`;
 
 /** What the user typed, reduced to something we can match on. */
 export interface ParsedQuery {
@@ -134,10 +142,23 @@ function adql(q: ParsedQuery): string | null {
   return null;
 }
 
-export function tapUrl(q: ParsedQuery): string | null {
+/** The TAP query string (everything after the base URL). */
+function tapQueryString(q: ParsedQuery): string | null {
   const query = adql(q);
   if (!query) return null;
-  return `${TAP}?query=${encodeURIComponent(query)}&format=json`;
+  return `?query=${encodeURIComponent(query)}&format=json`;
+}
+
+/** Absolute NASA archive URL (direct, CORS-restricted). */
+export function tapUrl(q: ParsedQuery): string | null {
+  const qs = tapQueryString(q);
+  return qs ? `${TAP}${qs}` : null;
+}
+
+/** Same-origin proxy URL (see the `/api/nasa` proxy in vite.config.ts). */
+export function tapProxyUrl(q: ParsedQuery): string | null {
+  const qs = tapQueryString(q);
+  return qs ? `${TAP_PROXY}${qs}` : null;
 }
 
 function rowToResolved(r: KoiRow): ResolvedTarget {
@@ -161,15 +182,54 @@ function rowToResolved(r: KoiRow): ResolvedTarget {
   };
 }
 
-/** Layer 2 — live NASA archive query (browser fetch, may be CORS-blocked). */
-export async function fetchFromArchive(q: ParsedQuery, signal?: AbortSignal): Promise<ResolvedTarget[]> {
-  const url = tapUrl(q);
-  if (!url) return [];
+async function fetchTapRows(url: string, signal?: AbortSignal): Promise<ResolvedTarget[]> {
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Archive responded ${res.status}`);
   const rows = (await res.json()) as KoiRow[];
   if (!Array.isArray(rows)) throw new Error('Unexpected archive response');
   return rows.map(rowToResolved);
+}
+
+/**
+ * Layer 2 — live NASA archive query.
+ *
+ * The TAP service sends no Access-Control-Allow-Origin header, so a direct
+ * browser fetch trips a CORS error. We therefore hit the same-origin
+ * `/api/nasa` proxy first (configured in vite.config.ts) and only fall back to
+ * the absolute URL when the proxy isn't wired up. A network/TypeError from the
+ * direct attempt almost always means CORS, so we surface that explicitly.
+ */
+export async function fetchFromArchive(q: ParsedQuery, signal?: AbortSignal): Promise<ResolvedTarget[]> {
+  const proxyUrl = tapProxyUrl(q);
+  const directUrl = tapUrl(q);
+  if (!proxyUrl && !directUrl) return [];
+
+  // 1. Same-origin proxy — dodges CORS entirely.
+  if (proxyUrl) {
+    try {
+      return await fetchTapRows(proxyUrl, signal);
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') throw err;
+      // Proxy not available (e.g. built as a static single file) — fall back.
+    }
+  }
+
+  // 2. Direct absolute URL — works only if the archive ever allows the origin.
+  if (!directUrl) return [];
+  try {
+    return await fetchTapRows(directUrl, signal);
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err;
+    // A TypeError from fetch() with no HTTP status is the classic CORS symptom:
+    // the request never completed because the archive sent no
+    // Access-Control-Allow-Origin header. Flag it so callers can explain it.
+    if (err instanceof TypeError) {
+      throw new Error(
+        'CORS: the NASA Exoplanet Archive did not allow a cross-origin request from your browser. Run through the /api/nasa same-origin proxy (vite dev/preview) to reach it live.',
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -214,11 +274,13 @@ export async function resolveKic(input: string, signal?: AbortSignal): Promise<R
     if ((err as Error)?.name === 'AbortError') {
       return { status: 'idle', target: null, message: '' };
     }
+    const isCors = (err as Error)?.message?.startsWith('CORS:');
     return {
       status: 'error',
       target: null,
-      message:
-        'Could not reach the NASA Exoplanet Archive from your browser (offline, or the request was blocked). The 26 bundled targets still resolve instantly — try one of those, or open the KOI table link below.',
+      message: isCors
+        ? 'The NASA Exoplanet Archive blocked the live lookup with a CORS error (it sends no Access-Control-Allow-Origin header). This works when the app runs behind the /api/nasa proxy. Meanwhile the 26 bundled targets still resolve instantly — try one, or open the KOI table link below.'
+        : 'Could not reach the NASA Exoplanet Archive from your browser (offline, or the request was blocked). The 26 bundled targets still resolve instantly — try one of those, or open the KOI table link below.',
     };
   }
 }
