@@ -10,6 +10,7 @@ import {
 } from '../lib/kicResolve';
 import { bulkUrl, mastSearchUrl, timeSeriesUrl } from '../lib/keplerTargets';
 import { LightCurve, StellarParams, simulateLightCurve } from '../lib/lightcurve';
+import { MastProgress, fetchRealLightCurve } from '../lib/mastLightCurve';
 
 interface Props {
   setStellar: (s: StellarParams) => void;
@@ -43,6 +44,7 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
   const [applied, setApplied] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [mast, setMast] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; message: string }>({ status: 'idle', message: '' });
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -56,6 +58,7 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
       abortRef.current = ctrl;
       setOutcome({ status: 'loading', target: null, message: 'Looking up the Kepler Input Catalog…' });
       setRevealed(false);
+      setMast({ status: 'idle', message: '' });
       const res = await resolveKic(q, ctrl.signal);
       if (ctrl.signal.aborted) return;
       setOutcome(res);
@@ -84,6 +87,35 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
     if (!t) return;
     const lc = simulateLightCurve(toSimParams(t, t.kic % 997), `${t.displayName} (KIC ${t.kic}) — archive model`);
     onAnalyse(lc, t.stellar);
+  };
+
+  const analyseReal = async () => {
+    if (!t || busy || mast.status === 'loading') return;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setMast({ status: 'loading', message: `Contacting MAST for KIC ${t.kic}…` });
+    try {
+      const res = await fetchRealLightCurve(t.kic, t.displayName, {
+        signal: ctrl.signal,
+        onProgress: (p: MastProgress) => {
+          if (!ctrl.signal.aborted) setMast({ status: 'loading', message: p.label });
+        },
+      });
+      if (ctrl.signal.aborted) return;
+      const more = res.available > res.files.length ? ` (of ${res.available} on MAST)` : '';
+      setMast({
+        status: 'ready',
+        message: `Real Kepler photometry: ${res.lc.time.length.toLocaleString()} cadences from ${res.files.length} quarter${res.files.length > 1 ? 's' : ''}${more} (${res.fluxColumn}${res.qualityCut ? ', bad-quality cadences removed' : ''}). The verdict below is for the real data, not the archive model.`,
+      });
+      onAnalyse(res.lc, t.stellar);
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        setMast({ status: 'idle', message: '' });
+        return;
+      }
+      setMast({ status: 'error', message: (err as Error)?.message ?? 'Download failed.' });
+    }
   };
 
   const hasTransit = !!t && t.period != null && (t.depthPpm ?? 0) > 0;
@@ -208,6 +240,14 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
               Analyse archive model now
             </button>
             <button
+              disabled={busy || mast.status === 'loading'}
+              onClick={analyseReal}
+              title="Download the target's actual Kepler light curve from MAST and run the pipeline on real photometry"
+              className="rounded-lg border border-aurora/40 px-3 py-1.5 text-xs text-aurora transition hover:bg-aurora/10 disabled:opacity-40"
+            >
+              {mast.status === 'loading' ? 'Downloading from MAST…' : '⬇ Analyse real light curve'}
+            </button>
+            <button
               onClick={() => copy(String(t.kic), 'kic')}
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10"
             >
@@ -221,9 +261,22 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
             </button>
           </div>
 
+          {mast.status !== 'idle' && mast.message && (
+            <p
+              className={`mt-1.5 text-[11px] leading-snug ${
+                mast.status === 'ready' ? 'text-aurora' : mast.status === 'loading' ? 'text-slate-400' : 'text-plasma'
+              }`}
+            >
+              {mast.status === 'loading' && <span className="mr-1.5 inline-block animate-pulse">◍</span>}
+              {mast.message}
+            </p>
+          )}
+
           <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
-            “Analyse archive model” builds a light curve from the published period, depth and duration so you can see the pipeline run
-            instantly. For the genuine photometry, download the real light curve below and drop it in the upload box.
+            “Archive model” synthesizes an idealized transit from the published period, depth and duration — it cannot reproduce binary
+            signatures (secondary eclipse, odd/even mismatch), so its verdict reflects the model, not the star. “Real light curve”
+            downloads the actual Kepler photometry from MAST and vets that instead (needs the dev-server proxy; otherwise fetch the data
+            with the Python snippet and upload it).
           </p>
 
           <div className="mt-2.5 grid gap-1.5 sm:grid-cols-3">

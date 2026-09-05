@@ -4,7 +4,7 @@ export interface LightCurve {
   time: number[]; // days (BKJD)
   flux: number[]; // normalized flux (median = 1)
   name: string;
-  source: 'sample' | 'upload' | 'simulated';
+  source: 'sample' | 'upload' | 'simulated' | 'mast';
 }
 
 export interface StellarParams {

@@ -69,9 +69,9 @@ Two lookup layers, in order:
 1. **Bundled catalogue** — the 26 teaching targets in `src/lib/keplerTargets.ts`. Instant, works with **no network**.
 2. **NASA Exoplanet Archive (live)** — a TAP query against the cumulative KOI table, run from your browser. Covers all ~9,500 KOIs. If you're offline or the request is blocked, the app says so and falls back to layer 1.
 
-From the result card you can **fill the star parameters**, **analyse an archive model** (a light curve synthesised from the published period/depth/duration, so you can watch the pipeline run immediately), copy the KIC or a ready-made Lightkurve snippet, and jump to the NASA Time Series Viewer, the MAST FITS tree or the official KOI record. NASA's disposition stays hidden behind a *Reveal* button so you can vet the signal yourself first.
+From the result card you can **fill the star parameters**, **analyse an archive model** (a light curve synthesised from the published period/depth/duration, so you can watch the pipeline run immediately), **analyse the real light curve** (downloads the target's actual Kepler long-cadence photometry from MAST — up to 4 quarters spread across the mission — parses the FITS files in-browser and vets the real data), copy the KIC or a ready-made Lightkurve snippet, and jump to the NASA Time Series Viewer, the MAST FITS tree or the official KOI record. NASA's disposition stays hidden behind a *Reveal* button so you can vet the signal yourself first.
 
-> The archive model is a **model**, not real photometry — it reproduces the catalogued transit shape. For genuine data, use the download links and drop the CSV into the upload box.
+> The archive model is a **model**, not real photometry — it reproduces the catalogued transit shape but cannot reproduce binary signatures (secondary eclipse, odd/even depth mismatch), so its verdict reflects the model, not the star. Real-data downloads need the dev-server proxy (`npm run dev` / `npm run preview`), since MAST sends no CORS headers; in the static single-file build, use the Python snippet and drop the CSV into the upload box instead.
 
 ---
 
@@ -233,6 +233,8 @@ src/
 │   ├── lightcurve.ts           Data model, seeded simulator, sample catalogue, text parser
 │   ├── keplerTargets.ts        26 real Kepler targets + archive URL builders
 │   ├── kicResolve.ts           KIC / KOI / name parsing, catalogue + live NASA TAP lookup
+│   ├── mastLightCurve.ts       Real Kepler photometry: MAST discovery, download, stitch
+│   ├── fitsLightCurve.ts       Minimal in-browser FITS reader (LIGHTCURVE BINTABLE)
 │   ├── analysis.ts             Detrend · BLS · phase-fold · trapezoid fit · metrics · classifier
 │   ├── analysis.worker.ts      Runs the pipeline off the main thread
 │   └── prompt.ts               Physical parameters → image-generation prompt
@@ -253,7 +255,7 @@ No charting library, no numerical library — the periodograms, fits and plots a
 
 ## 🔒 Privacy & offline
 
-The entire pipeline is client-side TypeScript. Uploaded files are read with `FileReader` and analysed in a Web Worker; nothing is transmitted anywhere. The only optional outbound request is the KIC resolver's live NASA Exoplanet Archive lookup, which fires solely when you resolve an id that isn't in the bundled catalogue — skip it and the app never touches the network. `npm run build` emits a single `dist/index.html` you can email, host on a USB stick, or open with no network at all.
+The entire pipeline is client-side TypeScript. Uploaded files are read with `FileReader` and analysed in a Web Worker; nothing is transmitted anywhere. The only optional outbound requests are the KIC resolver's live NASA Exoplanet Archive lookup (fires solely when you resolve an id that isn't in the bundled catalogue) and its real-light-curve download from MAST (fires only when you click “Analyse real light curve”) — skip both and the app never touches the network. `npm run build` emits a single `dist/index.html` you can email, host on a USB stick, or open with no network at all.
 
 ---
 
