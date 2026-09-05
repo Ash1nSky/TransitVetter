@@ -9,7 +9,7 @@ import {
   toSimParams,
 } from '../lib/kicResolve';
 import { bulkUrl, mastSearchUrl, timeSeriesUrl } from '../lib/keplerTargets';
-import { LightCurve, StellarParams, simulateLightCurve } from '../lib/lightcurve';
+import { LightCurve, StellarParams, maskSiblingTransits, simulateLightCurve } from '../lib/lightcurve';
 import { MastProgress, fetchRealLightCurve } from '../lib/mastLightCurve';
 
 interface Props {
@@ -41,6 +41,7 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
   const [query, setQuery] = useState('');
   const [outcome, setOutcome] = useState<ResolveOutcome>({ status: 'idle', target: null, message: '' });
   const [autoFill, setAutoFill] = useState(true);
+  const [maskSiblings, setMaskSiblings] = useState(true);
   const [applied, setApplied] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -73,6 +74,20 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
 
   const t: ResolvedTarget | null = outcome.target;
 
+  const selectKoi = (koiTarget: ResolvedTarget) => {
+    setOutcome((prev) => ({
+      ...prev,
+      target: koiTarget,
+      message: `Active target: ${koiTarget.displayName}${koiTarget.koi ? ` (${koiTarget.koi})` : ''}`,
+    }));
+    setRevealed(false);
+    if (autoFill) {
+      setStellar({ ...koiTarget.stellar });
+      setApplied(true);
+      setTimeout(() => setApplied(false), 1800);
+    }
+  };
+
   const copy = async (text: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -83,9 +98,31 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
     }
   };
 
+  const getTargetInfo = (isReal: boolean, maskedCadences = 0) => {
+    if (!t) return undefined;
+    const all = t.allKois && t.allKois.length > 0 ? t.allKois : [t];
+    const deepest = [...all].sort((a, b) => (b.depthPpm ?? 0) - (a.depthPpm ?? 0))[0];
+    const isDeepest = deepest.koi === t.koi || (t.depthPpm ?? 0) >= (deepest.depthPpm ?? 0);
+    return {
+      kic: t.kic,
+      koi: t.koi,
+      displayName: t.displayName,
+      keplerName: t.keplerName,
+      disposition: t.disposition,
+      isDeepest,
+      deepestKoi: deepest.displayName ?? (deepest.koi || `KIC ${t.kic}`),
+      siblings: t.siblings,
+      allKois: t.allKois,
+      isRealData: isReal,
+      maskedCadences,
+      maskedSiblingsCount: maskSiblings && t.siblings ? t.siblings.length : 0,
+    };
+  };
+
   const analyseModel = () => {
     if (!t) return;
     const lc = simulateLightCurve(toSimParams(t, t.kic % 997), `${t.displayName} (KIC ${t.kic}) — archive model`);
+    lc.targetInfo = getTargetInfo(false);
     onAnalyse(lc, t.stellar);
   };
 
@@ -104,11 +141,31 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
       });
       if (ctrl.signal.aborted) return;
       const more = res.available > res.files.length ? ` (of ${res.available} on MAST)` : '';
+      let finalLc = res.lc;
+      let maskNote = '';
+      let maskedCadences = 0;
+
+      if (maskSiblings && t.siblings && t.siblings.length > 0) {
+        const masks = t.siblings
+          .filter((s) => s.period > 0 && s.durationHours > 0)
+          .map((s) => ({
+            period: s.period,
+            epoch: s.epochBkjd ?? 0,
+            durationHours: s.durationHours,
+            koi: s.koi,
+          }));
+        const maskedRes = maskSiblingTransits(res.lc, masks);
+        finalLc = maskedRes.lc;
+        maskedCadences = maskedRes.maskedCadences;
+        maskNote = `, ${maskedCadences.toLocaleString()} in-transit cadences masked across ${masks.length} sibling KOI${masks.length > 1 ? 's' : ''}`;
+      }
+
       setMast({
         status: 'ready',
-        message: `Real Kepler photometry: ${res.lc.time.length.toLocaleString()} cadences from ${res.files.length} quarter${res.files.length > 1 ? 's' : ''}${more} (${res.fluxColumn}${res.qualityCut ? ', bad-quality cadences removed' : ''}). The verdict below is for the real data, not the archive model.`,
+        message: `Real Kepler photometry: ${finalLc.time.length.toLocaleString()} cadences from ${res.files.length} quarter${res.files.length > 1 ? 's' : ''}${more} (${res.fluxColumn}${res.qualityCut ? ', bad-quality cadences removed' : ''}${maskNote}). The verdict below is for the real data, not the archive model.`,
       });
-      onAnalyse(res.lc, t.stellar);
+      finalLc.targetInfo = getTargetInfo(true, maskedCadences);
+      onAnalyse(finalLc, t.stellar);
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
         setMast({ status: 'idle', message: '' });
@@ -128,7 +185,7 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
           <h3 className="text-sm font-semibold text-white">Know the KIC? Let the app fill everything in</h3>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
             Type a Kepler Input Catalog id — or a KOI number or Kepler name — and TransitVetter looks up the host star’s radius, mass and
-            temperature plus the published period, depth and duration, then drops them into the boxes below. Bundled targets resolve
+            temperature plus the published period, depth, duration and epoch, then drops them into the boxes below. Bundled targets resolve
             offline; anything else is fetched live from the NASA Exoplanet Archive.
           </p>
         </div>
@@ -146,7 +203,7 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="6922244   ·   Kepler-10 b   ·   KOI-97.01"
+            placeholder="6948054   ·   6922244   ·   Kepler-10 b   ·   KOI-97.01"
             spellCheck={false}
             className="w-full rounded-lg border border-white/10 bg-black/40 py-2 pl-11 pr-3 font-mono text-sm text-white placeholder:text-slate-600 focus:border-aurora focus:outline-none"
           />
@@ -193,6 +250,37 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
 
       {t && (
         <div className="fade-up mt-3 rounded-xl border border-white/10 bg-black/30 p-3 sm:p-4">
+          {/* Multi-KOI selector if system has multiple candidates */}
+          {t.allKois && t.allKois.length > 1 && (
+            <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  🪐 Multi-planet system ({t.allKois.length} KOIs on this star)
+                </span>
+                <span className="text-[10px] text-slate-500">Select candidate to vet:</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {t.allKois.map((k) => {
+                  const isSelected = k.koi === t.koi || k.displayName === t.displayName;
+                  return (
+                    <button
+                      key={k.koi ?? k.displayName}
+                      onClick={() => selectKoi(k)}
+                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-mono transition ${
+                        isSelected
+                          ? 'border border-aurora bg-aurora/20 font-bold text-aurora shadow-sm shadow-aurora/20'
+                          : 'border border-white/10 bg-black/40 text-slate-300 hover:border-white/25 hover:text-white'
+                      }`}
+                    >
+                      <span>{k.displayName}</span>
+                      {k.period && <span className="text-[10px] text-slate-400">({k.period.toFixed(1)}d)</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[11px] text-slate-500">KIC {t.kic}</span>
             <span className="h-1 w-1 rounded-full bg-white/20" />
@@ -217,6 +305,29 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
             <Stat label="Depth" value={t.depthPpm != null ? `${Math.round(t.depthPpm).toLocaleString()} ppm` : '—'} />
             <Stat label="Duration" value={t.durationHours != null ? `${t.durationHours.toFixed(2)} h` : '—'} />
           </div>
+
+          {/* Sibling KOI masking option */}
+          {t.siblings && t.siblings.length > 0 && (
+            <div className="mt-3 rounded-lg border border-aurora/30 bg-aurora/[0.06] p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-aurora">
+                  <input
+                    type="checkbox"
+                    checked={maskSiblings}
+                    onChange={(e) => setMaskSiblings(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[#35e0c2]"
+                  />
+                  <span>Mask known sibling KOIs ({t.siblings.length} sibling{t.siblings.length > 1 ? 's' : ''})</span>
+                </label>
+                <span className="font-mono text-[10px] text-slate-400">
+                  {t.siblings.map((s) => s.koi || s.keplerName).join(' · ')}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-300">
+                Removes in-transit cadences of sibling planets before Box Least Squares & vetting. Eliminates periodogram baseline pollution and prevents false Signal Detection Efficiency (SDE) degradation on multi-planet systems.
+              </p>
+            </div>
+          )}
 
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             <button
@@ -334,3 +445,4 @@ export default function KicResolver({ setStellar, onAnalyse, busy }: Props) {
     </div>
   );
 }
+

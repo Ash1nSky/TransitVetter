@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Starfield from './components/Starfield';
 import DataInput, { InputTab } from './components/DataInput';
-import ResultPanel from './components/ResultPanel';
+import ResultPanel, { SiblingItem } from './components/ResultPanel';
 import PromptGenerator from './components/PromptGenerator';
 import { LightCurveChart, PeriodogramChart, PhaseFoldedChart } from './components/Charts';
 import { AnalysisResult, analyze } from './lib/analysis';
-import { LightCurve, SAMPLE_TARGETS, SampleTarget, StellarParams, simulateLightCurve } from './lib/lightcurve';
+import { LightCurve, SAMPLE_TARGETS, SampleTarget, StellarParams, maskSiblingTransits, simulateLightCurve } from './lib/lightcurve';
+import { ResolvedTarget, toSimParams } from './lib/kicResolve';
+import { fetchRealLightCurve } from './lib/mastLightCurve';
 import AnalysisWorker from './lib/analysis.worker?worker&inline';
 
 const PIPELINE_STEPS = ['Normalising flux', 'Detrending stellar variability', 'Running Box Least Squares search', 'Phase-folding on best period', 'Fitting transit model', 'Running vetting tests', 'Computing disposition'];
@@ -78,6 +80,89 @@ export default function App() {
       setSelectedSample(s.id);
       setStellar(s.stellar);
       run(simulateLightCurve(s.sim, s.name), s.stellar, s.truth);
+    },
+    [run],
+  );
+
+  const onSelectSiblingTarget = useCallback(
+    async (item: SiblingItem, mode: 'real' | 'model') => {
+      setStellar({ ...item.stellar });
+      const rawSiblings = item.allKois
+        ? item.allKois.filter((x) => x.koi !== item.koi && x.period != null && x.durationHours != null)
+        : item.siblings ?? [];
+      const resolvedT: ResolvedTarget = {
+        kic: item.kic,
+        koi: item.koi ?? null,
+        displayName: item.displayName,
+        keplerName: item.keplerName ?? null,
+        disposition: item.disposition,
+        period: item.period ?? null,
+        depthPpm: item.depthPpm ?? null,
+        durationHours: item.durationHours ?? null,
+        epochBkjd: item.epochBkjd ?? null,
+        stellar: item.stellar,
+        source: 'catalogue',
+        siblings: rawSiblings,
+        allKois: item.allKois,
+      };
+
+      const deepest = item.allKois && item.allKois.length > 0 ? [...item.allKois].sort((a, b) => (b.depthPpm ?? 0) - (a.depthPpm ?? 0))[0] : null;
+      const isDeepest = !deepest || deepest.koi === item.koi || (item.depthPpm ?? 0) >= (deepest.depthPpm ?? 0);
+
+      if (mode === 'model') {
+        const lc = simulateLightCurve(toSimParams(resolvedT, item.kic % 997), `${item.displayName} (KIC ${item.kic}) — archive model`);
+        lc.targetInfo = {
+          kic: item.kic,
+          koi: item.koi,
+          displayName: item.displayName,
+          keplerName: item.keplerName,
+          disposition: item.disposition,
+          isDeepest,
+          deepestKoi: deepest?.displayName ?? item.displayName,
+          siblings: rawSiblings,
+          allKois: item.allKois,
+          isRealData: false,
+        };
+        run(lc, item.stellar);
+      } else {
+        setBusy(true);
+        try {
+          const res = await fetchRealLightCurve(item.kic, item.displayName);
+          let finalLc = res.lc;
+          let maskedCadences = 0;
+          if (rawSiblings.length > 0) {
+            const masks = rawSiblings
+              .filter((s: any) => s.period > 0 && s.durationHours > 0)
+              .map((s: any) => ({
+                period: s.period,
+                epoch: s.epochBkjd ?? 0,
+                durationHours: s.durationHours,
+                koi: s.koi,
+              }));
+            const maskedRes = maskSiblingTransits(res.lc, masks);
+            finalLc = maskedRes.lc;
+            maskedCadences = maskedRes.maskedCadences;
+          }
+          finalLc.targetInfo = {
+            kic: item.kic,
+            koi: item.koi,
+            displayName: item.displayName,
+            keplerName: item.keplerName,
+            disposition: item.disposition,
+            isDeepest,
+            deepestKoi: deepest?.displayName ?? item.displayName,
+            siblings: rawSiblings,
+            allKois: item.allKois,
+            isRealData: true,
+            maskedCadences,
+            maskedSiblingsCount: rawSiblings.length,
+          };
+          run(finalLc, item.stellar);
+        } catch (err) {
+          setBusy(false);
+          alert((err as Error)?.message ?? 'Download failed.');
+        }
+      }
     },
     [run],
   );
@@ -199,7 +284,7 @@ export default function App() {
         <div ref={resultsRef} className="scroll-mt-20" />
         {result && (
           <section className={`space-y-5 transition-opacity duration-500 ${busy ? 'opacity-30' : 'opacity-100'}`}>
-            <ResultPanel result={result} truth={truth} />
+            <ResultPanel result={result} truth={truth} onSelectTarget={onSelectSiblingTarget} />
             <div className="grid gap-5 lg:grid-cols-2">
               <LightCurveChart result={result} />
               <PhaseFoldedChart result={result} />

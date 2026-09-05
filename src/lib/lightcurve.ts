@@ -1,10 +1,45 @@
 // Light-curve data structures, synthetic generators and parsers
 
+export interface LightCurveTargetInfo {
+  kic?: number;
+  koi?: string | null;
+  displayName?: string;
+  keplerName?: string | null;
+  disposition?: string;
+  isDeepest?: boolean;
+  deepestKoi?: string | null;
+  siblings?: Array<{
+    koi: string;
+    keplerName: string | null;
+    period: number;
+    depthPpm: number;
+    durationHours: number;
+    epochBkjd?: number;
+    disposition: string;
+  }>;
+  allKois?: Array<{
+    kic: number;
+    koi: string | null;
+    displayName: string;
+    keplerName: string | null;
+    disposition: string;
+    period: number | null;
+    depthPpm: number | null;
+    durationHours: number | null;
+    epochBkjd?: number | null;
+    stellar: StellarParams;
+  }>;
+  isRealData?: boolean;
+  maskedCadences?: number;
+  maskedSiblingsCount?: number;
+}
+
 export interface LightCurve {
   time: number[]; // days (BKJD)
   flux: number[]; // normalized flux (median = 1)
   name: string;
   source: 'sample' | 'upload' | 'simulated' | 'mast';
+  targetInfo?: LightCurveTargetInfo;
 }
 
 export interface StellarParams {
@@ -291,3 +326,70 @@ export function lightCurveToCSV(lc: LightCurve): string {
   for (let i = 0; i < lc.time.length; i++) rows.push(`${lc.time[i].toFixed(5)},${lc.flux[i].toFixed(7)}`);
   return rows.join('\n');
 }
+
+// ---------- Multi-planet / Sibling KOI Masking ----------
+export interface TransitMask {
+  period: number;
+  epoch?: number | null; // BKJD
+  durationHours: number;
+  name?: string;
+  koi?: string;
+}
+
+export function isTimeInTransit(t: number, mask: TransitMask, maskFactor = 1.3): boolean {
+  if (!mask.period || mask.period <= 0 || !mask.durationHours) return false;
+  const durDays = mask.durationHours / 24;
+  const halfWin = (durDays / 2) * maskFactor;
+  // If epoch is not provided, we cannot mask by phase accurately
+  if (mask.epoch == null || !Number.isFinite(mask.epoch)) return false;
+  let dt = (t - mask.epoch) % mask.period;
+  if (dt < 0) dt += mask.period;
+  if (dt > mask.period / 2) dt -= mask.period;
+  return Math.abs(dt) <= halfWin;
+}
+
+export function maskSiblingTransits(
+  lc: LightCurve,
+  siblings: TransitMask[],
+  maskFactor = 1.3,
+): { lc: LightCurve; maskedCadences: number; totalCadences: number } {
+  const validSiblings = (siblings || []).filter(
+    (s) => s.period > 0 && s.durationHours > 0 && s.epoch != null && Number.isFinite(s.epoch),
+  );
+  if (validSiblings.length === 0) {
+    return { lc, maskedCadences: 0, totalCadences: lc.time.length };
+  }
+  const newTime: number[] = [];
+  const newFlux: number[] = [];
+  let masked = 0;
+  for (let i = 0; i < lc.time.length; i++) {
+    const t = lc.time[i];
+    let inSibling = false;
+    for (const s of validSiblings) {
+      if (isTimeInTransit(t, s, maskFactor)) {
+        inSibling = true;
+        break;
+      }
+    }
+    if (inSibling) {
+      masked++;
+    } else {
+      newTime.push(t);
+      newFlux.push(lc.flux[i]);
+    }
+  }
+  return {
+    lc: {
+      ...lc,
+      time: newTime,
+      flux: newFlux,
+      name:
+        masked > 0
+          ? `${lc.name} (masked ${validSiblings.length} sibling KOI${validSiblings.length > 1 ? 's' : ''})`
+          : lc.name,
+    },
+    maskedCadences: masked,
+    totalCadences: lc.time.length,
+  };
+}
+
