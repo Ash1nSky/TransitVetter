@@ -29,6 +29,117 @@ function Slider({ label, value, min, max, step, onChange, fmt, log }: { label: s
   );
 }
 
+const LK_SNIPPET = `# pip install lightkurve
+import lightkurve as lk
+
+lc = (lk.search_lightcurve("Kepler-8", mission="Kepler", cadence="long")
+        .download_all()
+        .stitch()
+        .remove_nans())
+
+lc.to_csv("kepler8.csv")   # -> time, flux  (drop straight into TransitVetter)`;
+
+const DATA_SOURCES: { name: string; href: string; blurb: string; tag: string }[] = [
+  {
+    name: 'MAST — Kepler Data Search',
+    href: 'https://archive.stsci.edu/kepler/data_search/search.php',
+    blurb: 'The official archive. Search by KIC ID, target name or coordinates and grab the quarterly light-curve files.',
+    tag: 'FITS',
+  },
+  {
+    name: 'exo.MAST',
+    href: 'https://exo.mast.stsci.edu/',
+    blurb: 'Type a planet name (“Kepler-7 b”), preview the light curve in the browser and export the time series.',
+    tag: 'Browse + export',
+  },
+  {
+    name: 'NASA Exoplanet Archive — KOI table',
+    href: 'https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative',
+    blurb: 'All ~9,500 Kepler Objects of Interest with official dispositions plus the stellar radius, mass and Teff for the boxes below.',
+    tag: 'CSV',
+  },
+  {
+    name: 'Lightkurve (Python)',
+    href: 'https://lightkurve.github.io/lightkurve/',
+    blurb: 'Easiest route: download, stitch and export any Kepler/K2/TESS target to CSV in four lines — snippet below.',
+    tag: 'Recommended',
+  },
+  {
+    name: 'MAST bulk directory',
+    href: 'https://archive.stsci.edu/pub/kepler/lightcurves/',
+    blurb: 'Raw HTTP tree of every public Kepler light curve, organised by KIC ID. Good for wget/scripted downloads.',
+    tag: 'Bulk',
+  },
+  {
+    name: 'Kaggle — Kepler exoplanet search results',
+    href: 'https://www.kaggle.com/datasets/nasa/kepler-exoplanet-search-results',
+    blurb: 'A ready-made offline mirror of the KOI catalogue if you just want labelled parameters without an archive query.',
+    tag: 'Mirror',
+  },
+];
+
+function DataSourceTip() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copySnippet = async () => {
+    try {
+      await navigator.clipboard.writeText(LK_SNIPPET);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-aurora/25 bg-aurora/[0.06] p-3">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-start gap-2.5 text-left">
+        <span className="mt-0.5 text-base leading-none">💡</span>
+        <span className="flex-1">
+          <span className="block text-xs font-semibold text-aurora">Tip — where to find real Kepler light curves</span>
+          <span className="mt-0.5 block text-[11px] leading-snug text-slate-400">
+            Every Kepler observation is public and free. {open ? 'Six good starting points:' : 'Tap for six archives, direct links and a 4-line Python snippet that exports a target to CSV.'}
+          </span>
+        </span>
+        <span className={`mt-0.5 text-slate-400 transition ${open ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+
+      {open && (
+        <div className="fade-up mt-3 space-y-2.5">
+          <ul className="grid gap-1.5 sm:grid-cols-2">
+            {DATA_SOURCES.map((s) => (
+              <li key={s.name}>
+                <a href={s.href} target="_blank" rel="noreferrer" className="group block h-full rounded-lg border border-white/10 bg-black/25 p-2.5 transition hover:border-aurora/40 hover:bg-black/40">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-white group-hover:text-aurora">{s.name} ↗</span>
+                    <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-slate-400">{s.tag}</span>
+                  </span>
+                  <span className="mt-1 block text-[10px] leading-snug text-slate-400">{s.blurb}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-lg border border-white/10 bg-black/40 p-2.5">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400">Archive files are FITS — convert them to CSV first</span>
+              <button onClick={copySnippet} className="rounded border border-white/15 px-2 py-0.5 text-[10px] text-slate-200 transition hover:bg-white/10">
+                {copied ? 'Copied ✓' : 'Copy'}
+              </button>
+            </div>
+            <pre className="overflow-x-auto font-mono text-[10px] leading-relaxed text-slate-300">{LK_SNIPPET}</pre>
+          </div>
+
+          <p className="text-[10px] leading-snug text-slate-500">
+            Prefer PDCSAP flux (systematics removed), long cadence (29.4 min) and at least ~30 days of baseline so three or more transits land in the window — the pipeline needs three to trust a period. Don’t forget to enter the host star’s radius, mass and Teff below; the KOI table lists them.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StellarEditor({ stellar, setStellar }: { stellar: StellarParams; setStellar: (s: StellarParams) => void }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/25 p-3">
@@ -126,6 +237,7 @@ export default function DataInput({ tab, setTab, selectedSample, onSelectSample,
 
       {tab === 'upload' && (
         <div className="space-y-3">
+          <DataSourceTip />
           <div
             onDragOver={(e) => {
               e.preventDefault();

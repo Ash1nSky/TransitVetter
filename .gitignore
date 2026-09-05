@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+.vite/
+
+# local-only dev server config (preview sandbox host allowlist)
+vite.preview.config.ts
