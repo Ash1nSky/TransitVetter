@@ -150,7 +150,7 @@ export default function App() {
         {/* Input */}
         <section className="grid gap-5 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <DataInput tab={tab} setTab={setTab} selectedSample={selectedSample} onSelectSample={onSelectSample} onUpload={(lc, st) => { setSelectedSample(null); run(lc, st); }} onSimulate={(lc, st) => { setSelectedSample(null); run(lc, st); }} stellar={stellar} setStellar={setStellar} busy={busy} />
+            <DataInput tab={tab} setTab={setTab} selectedSample={selectedSample} onSelectSample={onSelectSample} onUpload={(lc, st) => { setSelectedSample(null); run(lc, st); }} onSimulate={(lc, st) => { setSelectedSample(null); run(lc, st); }} onResolved={(lc, st) => { setSelectedSample(null); setStellar(st); run(lc, st); }} stellar={stellar} setStellar={setStellar} busy={busy} />
           </div>
           <div className="space-y-5">
             {/* Pipeline status */}
