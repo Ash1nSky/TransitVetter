@@ -66,10 +66,12 @@ TransitVetter fills in the rest — **host-star radius, mass and effective tempe
 
 Two lookup layers, in order:
 
-1. **Bundled catalogue** — the 26 teaching targets in `src/lib/keplerTargets.ts`. Instant, works with **no network**.
+1. **Bundled catalogue** — the 30 teaching targets in `src/lib/keplerTargets.ts` (including multi-planet systems like Kepler-245 / KIC 6948054). Instant, works with **no network**.
 2. **NASA Exoplanet Archive (live)** — a TAP query against the cumulative KOI table, run from your browser. Covers all ~9,500 KOIs. If you're offline or the request is blocked, the app says so and falls back to layer 1.
 
-From the result card you can **fill the star parameters**, **analyse an archive model** (a light curve synthesised from the published period/depth/duration, so you can watch the pipeline run immediately), **analyse the real light curve** (downloads the target's actual Kepler long-cadence photometry from MAST — up to 4 quarters spread across the mission — parses the FITS files in-browser and vets the real data), copy the KIC or a ready-made Lightkurve snippet, and jump to the NASA Time Series Viewer, the MAST FITS tree or the official KOI record. NASA's disposition stays hidden behind a *Reveal* button so you can vet the signal yourself first.
+From the result card you can **fill the star parameters**, **switch between candidate KOIs in multi-planet systems**, **toggle sibling KOI masking**, **analyse an archive model** (a light curve synthesised from the published period/depth/duration, so you can watch the pipeline run immediately), **analyse the real light curve** (downloads the target's actual Kepler long-cadence photometry from MAST — up to 4 quarters spread across the mission — parses the FITS files in-browser and vets the real data), copy the KIC or a ready-made Lightkurve snippet, and jump to the NASA Time Series Viewer, the MAST FITS tree or the official KOI record. NASA's disposition stays hidden behind a *Reveal* button so you can vet the signal yourself first.
+
+> **Multi-planet systems & Sibling Masking:** In systems hosting multiple transiting exoplanets (such as KIC 6948054 / Kepler-245), unmasked sibling transits inject out-of-phase dips that inflate periodogram noise and degrade the Box Least Squares Signal Detection Efficiency (SDE < 6). TransitVetter automatically identifies all sibling KOIs on the host star and masks their in-transit cadences before BLS and diagnostic tests, ensuring accurate vetting of individual planets.
 
 > The archive model is a **model**, not real photometry — it reproduces the catalogued transit shape but cannot reproduce binary signatures (secondary eclipse, odd/even depth mismatch), so its verdict reflects the model, not the star. Real-data downloads need the dev-server proxy (`npm run dev` / `npm run preview`), since MAST sends no CORS headers; in the static single-file build, use the Python snippet and drop the CSV into the upload box instead.
 

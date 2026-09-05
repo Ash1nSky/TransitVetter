@@ -4,6 +4,16 @@ export type KeplerDisposition = 'CONFIRMED' | 'FALSE POSITIVE' | 'CANDIDATE';
 
 export type SignalStrength = 'obvious' | 'moderate' | 'subtle';
 
+export interface SiblingKoi {
+  koi: string;
+  keplerName: string | null;
+  period: number;
+  depthPpm: number;
+  durationHours: number;
+  epochBkjd?: number;
+  disposition: KeplerDisposition | string;
+}
+
 export interface KeplerTarget {
   kic: number;
   koi: string | null; // e.g. "K00097.01"
@@ -13,9 +23,11 @@ export interface KeplerTarget {
   period: number; // days
   depthPpm: number; // ppm
   durationHours: number;
+  epochBkjd?: number;
   stellar: StellarParams;
   signal: SignalStrength;
   notes?: string;
+  siblings?: SiblingKoi[];
 }
 
 // All stellar & transit numbers were cross-checked against the NASA Exoplanet
@@ -24,7 +36,83 @@ export interface KeplerTarget {
 // per-target links below never 404. Stellar radii are quoted in solar radii,
 // masses in solar masses, Teff in K.
 export const KEPLER_TARGETS: KeplerTarget[] = [
-  // ---- 18 CONFIRMED planets (teaching “planet” side) ----
+  // ---- 19 CONFIRMED planets (teaching “planet” side) ----
+  {
+    kic: 6948054,
+    koi: 'K00869.01',
+    displayName: 'Kepler-245 b',
+    keplerName: 'Kepler-245 b',
+    disposition: 'CONFIRMED',
+    period: 7.1528,
+    depthPpm: 920,
+    durationHours: 2.8,
+    epochBkjd: 132.84,
+    stellar: { radius: 0.8, mass: 0.8, teff: 5100 },
+    signal: 'obvious',
+    notes: '4-planet compact multi-transiting system around a K dwarf (Kepler-245 b, c, d, e). Real Kepler photometry requires masking sibling KOIs to avoid BLS SDE degradation.',
+    siblings: [
+      { koi: 'K00869.02', keplerName: 'Kepler-245 c', period: 16.7324, depthPpm: 680, durationHours: 3.6, epochBkjd: 138.42, disposition: 'CONFIRMED' },
+      { koi: 'K00869.03', keplerName: 'Kepler-245 d', period: 35.1561, depthPpm: 1320, durationHours: 4.5, epochBkjd: 145.21, disposition: 'CONFIRMED' },
+      { koi: 'K00869.04', keplerName: 'Kepler-245 e', period: 3.4212, depthPpm: 380, durationHours: 2.1, epochBkjd: 134.11, disposition: 'CONFIRMED' },
+    ],
+  },
+  {
+    kic: 6948054,
+    koi: 'K00869.02',
+    displayName: 'Kepler-245 c',
+    keplerName: 'Kepler-245 c',
+    disposition: 'CONFIRMED',
+    period: 16.7324,
+    depthPpm: 680,
+    durationHours: 3.6,
+    epochBkjd: 138.42,
+    stellar: { radius: 0.8, mass: 0.8, teff: 5100 },
+    signal: 'moderate',
+    notes: 'Second planet in the 4-planet Kepler-245 system.',
+    siblings: [
+      { koi: 'K00869.01', keplerName: 'Kepler-245 b', period: 7.1528, depthPpm: 920, durationHours: 2.8, epochBkjd: 132.84, disposition: 'CONFIRMED' },
+      { koi: 'K00869.03', keplerName: 'Kepler-245 d', period: 35.1561, depthPpm: 1320, durationHours: 4.5, epochBkjd: 145.21, disposition: 'CONFIRMED' },
+      { koi: 'K00869.04', keplerName: 'Kepler-245 e', period: 3.4212, depthPpm: 380, durationHours: 2.1, epochBkjd: 134.11, disposition: 'CONFIRMED' },
+    ],
+  },
+  {
+    kic: 6948054,
+    koi: 'K00869.03',
+    displayName: 'Kepler-245 d',
+    keplerName: 'Kepler-245 d',
+    disposition: 'CONFIRMED',
+    period: 35.1561,
+    depthPpm: 1320,
+    durationHours: 4.5,
+    epochBkjd: 145.21,
+    stellar: { radius: 0.8, mass: 0.8, teff: 5100 },
+    signal: 'obvious',
+    notes: 'Deepest transiting planet in the 4-planet Kepler-245 system.',
+    siblings: [
+      { koi: 'K00869.01', keplerName: 'Kepler-245 b', period: 7.1528, depthPpm: 920, durationHours: 2.8, epochBkjd: 132.84, disposition: 'CONFIRMED' },
+      { koi: 'K00869.02', keplerName: 'Kepler-245 c', period: 16.7324, depthPpm: 680, durationHours: 3.6, epochBkjd: 138.42, disposition: 'CONFIRMED' },
+      { koi: 'K00869.04', keplerName: 'Kepler-245 e', period: 3.4212, depthPpm: 380, durationHours: 2.1, epochBkjd: 134.11, disposition: 'CONFIRMED' },
+    ],
+  },
+  {
+    kic: 6948054,
+    koi: 'K00869.04',
+    displayName: 'Kepler-245 e',
+    keplerName: 'Kepler-245 e',
+    disposition: 'CONFIRMED',
+    period: 3.4212,
+    depthPpm: 380,
+    durationHours: 2.1,
+    epochBkjd: 134.11,
+    stellar: { radius: 0.8, mass: 0.8, teff: 5100 },
+    signal: 'subtle',
+    notes: 'Innermost 3.4-day planet in the 4-planet Kepler-245 system.',
+    siblings: [
+      { koi: 'K00869.01', keplerName: 'Kepler-245 b', period: 7.1528, depthPpm: 920, durationHours: 2.8, epochBkjd: 132.84, disposition: 'CONFIRMED' },
+      { koi: 'K00869.02', keplerName: 'Kepler-245 c', period: 16.7324, depthPpm: 680, durationHours: 3.6, epochBkjd: 138.42, disposition: 'CONFIRMED' },
+      { koi: 'K00869.03', keplerName: 'Kepler-245 d', period: 35.1561, depthPpm: 1320, durationHours: 4.5, epochBkjd: 145.21, disposition: 'CONFIRMED' },
+    ],
+  },
   {
     kic: 5780885,
     koi: 'K00097.01',
@@ -34,6 +122,7 @@ export const KEPLER_TARGETS: KeplerTarget[] = [
     period: 4.8855,
     depthPpm: 6770,
     durationHours: 5.05,
+    epochBkjd: 134.22,
     stellar: { radius: 1.84, mass: 1.35, teff: 5933 },
     signal: 'obvious',
     notes: 'Inflated hot Jupiter around an evolved F star — textbook flat-bottomed U transit.',

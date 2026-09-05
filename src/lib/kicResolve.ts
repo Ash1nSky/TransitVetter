@@ -1,4 +1,4 @@
-import { KEPLER_TARGETS, KeplerTarget } from './keplerTargets';
+import { KEPLER_TARGETS, KeplerTarget, SiblingKoi } from './keplerTargets';
 import { DEFAULT_SIM, SimParams, StellarParams } from './lightcurve';
 
 // ---------------------------------------------------------------------------
@@ -6,7 +6,7 @@ import { DEFAULT_SIM, SimParams, StellarParams } from './lightcurve';
 // ---------------------------------------------------------------------------
 // Give it a KIC id (or a KOI / Kepler name) and it hands back everything the
 // app needs to pre-fill itself: host-star radius / mass / Teff plus the transit
-// parameters (period, depth, duration) from the NASA cumulative KOI table.
+// parameters (period, depth, duration, epoch) from the NASA cumulative KOI table.
 //
 // Two lookup layers:
 //   1. offline  — the 26-target catalogue bundled in keplerTargets.ts. Instant,
@@ -14,6 +14,8 @@ import { DEFAULT_SIM, SimParams, StellarParams } from './lightcurve';
 //   2. live     — NASA Exoplanet Archive TAP service, queried straight from the
 //                 browser. Covers all ~9,500 KOIs. If the network or CORS
 //                 blocks it we simply fall back to layer 1 / a clear message.
+
+export type { SiblingKoi };
 
 export interface ResolvedTarget {
   kic: number;
@@ -24,9 +26,12 @@ export interface ResolvedTarget {
   period: number | null; // days
   depthPpm: number | null;
   durationHours: number | null;
+  epochBkjd: number | null;
   stellar: StellarParams;
   notes?: string;
   source: 'catalogue' | 'archive';
+  siblings?: SiblingKoi[];
+  allKois?: ResolvedTarget[];
 }
 
 export type ResolveStatus = 'idle' | 'loading' | 'ok' | 'not-found' | 'error';
@@ -103,6 +108,41 @@ export function findInCatalogue(q: ParsedQuery): KeplerTarget | null {
 }
 
 export function fromCatalogue(t: KeplerTarget): ResolvedTarget {
+  const sameKic = KEPLER_TARGETS.filter((x) => x.kic === t.kic);
+  const siblingsFromCatalog: SiblingKoi[] = sameKic
+    .filter((x) => x.koi !== t.koi)
+    .map((x) => ({
+      koi: x.koi ?? `KOI-${x.kic}`,
+      keplerName: x.keplerName ?? null,
+      period: x.period,
+      depthPpm: x.depthPpm,
+      durationHours: x.durationHours,
+      epochBkjd: x.epochBkjd,
+      disposition: x.disposition,
+    }));
+  const explicitSiblings = t.siblings ?? [];
+  const allSiblings = [...explicitSiblings];
+  for (const s of siblingsFromCatalog) {
+    if (!allSiblings.some((x) => x.koi === s.koi)) {
+      allSiblings.push(s);
+    }
+  }
+
+  const allKois: ResolvedTarget[] = sameKic.map((k) => ({
+    kic: k.kic,
+    koi: k.koi,
+    displayName: k.displayName,
+    keplerName: k.keplerName ?? null,
+    disposition: k.disposition,
+    period: k.period,
+    depthPpm: k.depthPpm,
+    durationHours: k.durationHours,
+    epochBkjd: k.epochBkjd ?? null,
+    stellar: { ...k.stellar },
+    notes: k.notes,
+    source: 'catalogue',
+  }));
+
   return {
     kic: t.kic,
     koi: t.koi,
@@ -112,9 +152,12 @@ export function fromCatalogue(t: KeplerTarget): ResolvedTarget {
     period: t.period,
     depthPpm: t.depthPpm,
     durationHours: t.durationHours,
+    epochBkjd: t.epochBkjd ?? null,
     stellar: { ...t.stellar },
     notes: t.notes,
     source: 'catalogue',
+    siblings: allSiblings.length > 0 ? allSiblings : undefined,
+    allKois: allKois.length > 1 ? allKois : undefined,
   };
 }
 
@@ -124,6 +167,7 @@ interface KoiRow {
   kepler_name: string | null;
   koi_disposition: string | null;
   koi_period: number | null;
+  koi_time0bk: number | null;
   koi_depth: number | null;
   koi_duration: number | null;
   koi_srad: number | null;
@@ -132,12 +176,14 @@ interface KoiRow {
 }
 
 function adql(q: ParsedQuery): string | null {
-  const cols = 'kepid,kepoi_name,kepler_name,koi_disposition,koi_period,koi_depth,koi_duration,koi_srad,koi_smass,koi_steff';
+  const cols = 'kepid,kepoi_name,kepler_name,koi_disposition,koi_period,koi_time0bk,koi_depth,koi_duration,koi_srad,koi_smass,koi_steff';
   if (q.kic != null) return `select ${cols} from cumulative where kepid=${q.kic} order by koi_period asc`;
-  if (q.koi) return `select ${cols} from cumulative where kepoi_name='${q.koi}'`;
+  if (q.koi) {
+    return `select ${cols} from cumulative where kepid in (select kepid from cumulative where kepoi_name='${q.koi}') order by koi_period asc`;
+  }
   if (q.name) {
     const safe = q.name.replace(/'/g, "''");
-    return `select ${cols} from cumulative where kepler_name like '${safe}%'`;
+    return `select ${cols} from cumulative where kepid in (select kepid from cumulative where kepler_name like '${safe}%') order by koi_period asc`;
   }
   return null;
 }
@@ -173,6 +219,7 @@ function rowToResolved(r: KoiRow): ResolvedTarget {
     period: r.koi_period ?? null,
     depthPpm: r.koi_depth ?? null,
     durationHours: r.koi_duration ?? null,
+    epochBkjd: r.koi_time0bk ?? null,
     stellar: {
       radius: r.koi_srad ?? 1,
       mass: r.koi_smass ?? 1,
@@ -252,22 +299,53 @@ export async function resolveKic(input: string, signal?: AbortSignal): Promise<R
   }
 
   try {
-    const rows = await fetchFromArchive(q, signal);
-    if (rows.length === 0) {
+    const rawRows = await fetchFromArchive(q, signal);
+    if (rawRows.length === 0) {
       return {
         status: 'not-found',
         target: null,
         message: `No Kepler Object of Interest matches “${q.raw}”. Check the id, or try a Kepler name like “Kepler-7 b”.`,
       };
     }
-    // Prefer the .01 / deepest-signal entry when a KIC hosts several KOIs.
-    const best = [...rows].sort((a, b) => (b.depthPpm ?? 0) - (a.depthPpm ?? 0))[0];
+
+    const allTargets: ResolvedTarget[] = rawRows.map((r) => ({ ...r }));
+
+    // Find the primary target the user asked for
+    let selected = allTargets[0];
+    if (q.koi) {
+      const match = allTargets.find((t) => t.koi === q.koi);
+      if (match) selected = match;
+    } else if (q.name) {
+      const n = normName(q.name);
+      const match = allTargets.find((t) => normName(t.displayName) === n || (t.keplerName && normName(t.keplerName) === n));
+      if (match) selected = match;
+    } else {
+      // Default: choose the deepest signal
+      selected = [...allTargets].sort((a, b) => (b.depthPpm ?? 0) - (a.depthPpm ?? 0))[0];
+    }
+
+    // Attach siblings and allKois to each target
+    for (const tgt of allTargets) {
+      tgt.allKois = allTargets;
+      tgt.siblings = allTargets
+        .filter((x) => x.koi !== tgt.koi && x.period != null && x.durationHours != null)
+        .map((x) => ({
+          koi: x.koi ?? `KOI-${x.kic}`,
+          keplerName: x.keplerName,
+          period: x.period!,
+          depthPpm: x.depthPpm ?? 0,
+          durationHours: x.durationHours!,
+          epochBkjd: x.epochBkjd ?? undefined,
+          disposition: x.disposition,
+        }));
+    }
+
     return {
       status: 'ok',
-      target: best,
+      target: selected,
       message:
-        rows.length > 1
-          ? `Live from the NASA archive — KIC ${best.kic} hosts ${rows.length} KOIs; showing the deepest signal.`
+        allTargets.length > 1
+          ? `Live from the NASA archive — KIC ${selected.kic} hosts ${allTargets.length} KOIs (${allTargets.map((x) => x.koi || x.displayName).join(', ')}). Active target: ${selected.displayName}${selected.koi ? ` (${selected.koi})` : ''}.`
           : 'Live from the NASA Exoplanet Archive — parameters filled in below.',
     };
   } catch (err) {
@@ -290,6 +368,7 @@ export function toSimParams(t: ResolvedTarget, seed = 42): SimParams {
   const period = t.period && t.period > 0 ? t.period : 5;
   const depth = t.depthPpm != null ? Math.max(0, t.depthPpm / 1e6) : 0.001;
   const durationDays = t.durationHours != null && t.durationHours > 0 ? t.durationHours / 24 : 0.12;
+  const epoch = t.epochBkjd != null ? t.epochBkjd : period * 0.37;
   // Enough baseline for the BLS to see >= 5 transits, capped so it stays fast.
   const span = Math.min(180, Math.max(30, period * 6));
   // Deep V-shaped eclipses are the EB signature; shallow ones stay U-shaped.
@@ -297,7 +376,7 @@ export function toSimParams(t: ResolvedTarget, seed = 42): SimParams {
   return {
     ...DEFAULT_SIM,
     period,
-    epoch: period * 0.37,
+    epoch,
     depth,
     duration: Math.min(durationDays, period * 0.4),
     shape,
@@ -319,4 +398,5 @@ export function resolverPythonSnippet(t: ResolvedTarget): string {
 }
 
 /** Handful of ids shown as one-tap examples. */
-export const RESOLVER_EXAMPLES = ['6922244', 'Kepler-10 b', 'KOI-97.01', '8112039'];
+export const RESOLVER_EXAMPLES = ['6948054', '6922244', 'Kepler-10 b', 'KOI-97.01', '8112039'];
+
