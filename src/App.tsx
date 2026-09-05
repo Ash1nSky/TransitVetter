@@ -3,7 +3,6 @@ import Starfield from './components/Starfield';
 import DataInput, { InputTab } from './components/DataInput';
 import ResultPanel from './components/ResultPanel';
 import PromptGenerator from './components/PromptGenerator';
-import Methodology from './components/Methodology';
 import { LightCurveChart, PeriodogramChart, PhaseFoldedChart } from './components/Charts';
 import { AnalysisResult, analyze } from './lib/analysis';
 import { LightCurve, SAMPLE_TARGETS, SampleTarget, StellarParams, simulateLightCurve } from './lib/lightcurve';
@@ -210,10 +209,8 @@ export default function App() {
           </section>
         )}
 
-        <Methodology />
-
         <footer className="pb-6 pt-4 text-center text-[11px] text-slate-500">
-          Sample light curves are synthesised from published parameters of real Kepler objects. Real data: <a className="text-aurora hover:underline" href="https://exoplanetarchive.ipac.caltech.edu/" target="_blank" rel="noreferrer">NASA Exoplanet Archive</a> · <a className="text-aurora hover:underline" href="https://archive.stsci.edu/kepler/" target="_blank" rel="noreferrer">MAST</a>
+          Sample light curves are synthesised from published parameters of real Kepler objects. Real data: <a className="text-aurora hover:underline" href="https://exoplanetarchive.ipac.caltech.edu/" target="_blank" rel="noreferrer">NASA Exoplanet Archive</a> · <a className="text-aurora hover:underline" href="https://archive.stsci.edu/kepler/" target="_blank" rel="noreferrer">MAST</a> · <a className="text-aurora hover:underline" href="https://github.com/Ash1nSky/TransitVetter#-how-the-classifier-works" target="_blank" rel="noreferrer">How the classifier works</a>
         </footer>
       </main>
     </div>
